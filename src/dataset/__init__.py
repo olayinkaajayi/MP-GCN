@@ -7,6 +7,7 @@ from .volleyball_individual_feeder import Volleyball_Individual_Feeder
 from .kinetics_feeder import K400_HRNet_Feeder
 
 __data_args = {
+    'CamD': {'class': 6, 'feeder': Volleyball_Feeder},
     'volleyball': {'class': 8, 'feeder': Volleyball_Feeder},
     'volleyball_individual': {'class': 10, 'feeder': Volleyball_Individual_Feeder},
     'nba': {'class': 9, 'feeder': NBA_Feeder},
