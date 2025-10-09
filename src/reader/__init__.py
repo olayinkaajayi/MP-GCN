@@ -1,12 +1,13 @@
 import logging
 
 from .volleyball_reader import VolleyBall_Reader
+from .camD_reader import CamD_Reader
 from .volleyball_weak_reader import VolleyBall_Weak_Reader
 from .nba_reader import NBA_Reader
 from .k400_reader import K400_HRNet_Reader
 
 __generator = {
-    'CamD': VolleyBall_Reader,
+    'CamD': CamD_Reader,
     'volleyball': VolleyBall_Reader,
     'volleyball-weak': VolleyBall_Weak_Reader,
     'nba': NBA_Reader,
