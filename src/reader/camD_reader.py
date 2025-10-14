@@ -1,4 +1,5 @@
 import os
+import json
 import pickle
 import random
 import logging
@@ -9,7 +10,7 @@ ACTIVITIES = ['B1', 'F1', 'B2', 'F2', 'B3',
               'F3', 'B4', 'F4', 'B5', 'F5']
 
 class CamD_Reader():
-    def __init__(self, dataset_root_folder, out_folder, **kwargs):
+    def __init__(self, dataset_root_folder, out_folder, split_ratio=0.7, **kwargs):
         self.max_channel = 3
         self.max_frame = 100
         self.max_joint = 17
@@ -19,7 +20,8 @@ class CamD_Reader():
         self.out_folder = out_folder
 
         # Divide train and eval samples
-        smp_idx = range(len(dataset))
+        pose_dir = os.path.join(dataset_root_folder,'pose')
+        smp_idx = range(len(os.listdir(pose_dir)))
         random.shuffle(smp_idx)
         split_idx = int(len(smp_idx) * split_ratio)
         self.training_samples = smp_idx[:split_idx]
@@ -28,96 +30,121 @@ class CamD_Reader():
         # Create label-to-idx map
         self.class2idx = {name: i for i, name in enumerate(ACTIVITIES)}
 
-    def read_pose(self, joint_path, ball_path, clip):
-        # joint_raw: T: (M, V, 3) 20: (6, 17, 3)
-        # 3: [joint_x, joint_y, joint_type]
-        # ball_raw: [2,41]
 
-        C, T, V, M = 3, 100, 17, 6
-        skeleton_data = np.zeros([T, M, V, C])
-        
-        # Read skeleton data
-        with open(os.path.join(joint_path, clip+'.pickle'), 'rb') as f:
-            joint_raw = pickle.load(f)
-        for t in joint_raw.keys():
-            skeleton_data[t-int(clip)+20] = joint_raw[t]
+    def read_pose_and_object(self, pose_path, obj_path):
+        """
+        Reads pose and object JSON files and returns:
+        - skeleton_data: np.array of shape (T, M, V, C)
+        where C = [x, y, confidence]
+        - object_info: dict {"obj_name": [[x,y,confidence], [x,y,confidence], ...]}
 
-        # Read ball data
-        with open(os.path.join(ball_path, clip+'.txt'), 'r') as f:
-            ball_data = f.readlines()
-        # T:41, C:2+1
-        ball_data = np.array(
-            [list(map(int, t.strip().split())) + [0] for t in ball_data])
-        # T,C -> T,1,C
-        ball_data = np.expand_dims(ball_data, axis=1)
-        
-        # only select middle 20 frames
-        # ball_data = ball_data[10:30, :]
-        # # T,C -> C,T,M
-        # ball_data = np.expand_dims(ball_data.transpose(
-        #     1, 0), axis=-1).repeat(M, axis=-1)
-        # # C,T,M -> C,T,1,M
-        # ball_data = np.expand_dims(ball_data, axis=2)
+        Args:
+            pose_path (str): Path to pose JSON files.
+            obj_path (str): Directory containingPath to object JSON files.
+            T (int): Total number of frames (optional fixed length).
+            V (int): Number of joints per person.
+            M (int): Number of persons (actors).
+            C (int): Channels per joint (x, y, conf).
 
-        return skeleton_data, ball_data
+        Returns:
+            skeleton_data (np.ndarray): shape (T, M, V, C)
+            object_info (dict): {"obj_name": [[x, y], ...]}
+        """
+
+        T, M, V, C = self.max_frame, self.max_person, self.max_joint, self.max_channel
+
+        # --- Initialize pose data array ---
+        skeleton_data = np.zeros((T, M, V, C), dtype=np.float32)
+
+        # --- Load Pose JSON ---
+        with open(pose_path, 'r') as f:
+            pose_data = json.load(f)
+
+        # Fill skeleton_data
+        for frame_data in pose_data.get("frames", []):
+            t = frame_data["frame_index"]
+########################## Might need to introduce my downsampling function here ##################################################
+            if t >= T:
+                continue
+            for m, person in enumerate(frame_data["poses"][:M]):
+                kpts = np.array(person["keypoints"], dtype=np.float32)
+                conf = np.array(person["confidence"], dtype=np.float32)
+                # Shape: (V, 2) → stack with conf to get (V, 3)
+                joint = np.concatenate([kpts, conf[:, None]], axis=1)
+                v = min(V, joint.shape[0])
+                skeleton_data[t, m, :v, :] = joint[:v]
+
+        # --- Load Object JSON ---
+        with open(obj_path, 'r') as f:
+            obj_data = json.load(f)
+
+        # Assuming one object of interest per video
+        obj_name = None
+        obj_coords = []
+
+        for frame_data in obj_data.get("frames", []):
+            objects = frame_data.get("objects", [])
+            if not objects:
+                obj_coords.append([np.nan, np.nan])  # no object in frame
+                continue
+            # Pick first object (or highest confidence)
+            obj = max(objects, key=lambda o: o.get("confidence", 0))
+            if obj_name is None:
+                obj_name = obj["object_name"]
+            cx, cy = obj["center"]
+            conf = obj["confidence"]
+            obj_coords.append([float(cx), float(cy), float(conf)])
+
+        object_info = {obj_name or "unknown": obj_coords}
+
+        return skeleton_data, object_info
+
 
     def gendata(self, phase):
 
         res_skeleton = []
-        res_ball = []
-        group_labels = []
-        individual_labels = []
-        videos = self.training_samples if phase == 'train' else self.eval_samples
-        
-        # actions[(video_id, clip)][frame]: [N, 1]
-        individual_label_path = os.path.join(
-            self.dataset_root_folder, 'tracks_normalized_with_person_action_label.pkl')
-        individual_label_dict = np.load(
-            individual_label_path, allow_pickle=True)
+        res_obj = []
+        group_label = []
+        video_list = os.listdir(path) # use the directory for pose
+        videos = video_list[self.training_samples] if phase == 'train' else video_list[self.eval_samples]
         
         iterizer = tqdm(videos, dynamic_ncols=True)
-        for video_id in iterizer:
-            video_path = os.path.join(
-                self.dataset_root_folder, 'videos', str(video_id))
+        for filename in iterizer:
+
+            video_id = filename.split('.')[0].split('_')[0] # loading from a .json file
+
+            # Skip the random walking files
+            if video_id[:-5] not in ['RED', 'YELLOW', 'BLACK', 'GREEN', 'BLUE', 'WHITE']:
+                continue
+
+            # path to joints and object files
             joint_path = os.path.join(
-                self.dataset_root_folder, 'joints', str(video_id))
-            ball_path = os.path.join(
-                self.dataset_root_folder, 'volleyball_ball_annotation', str(video_id))
-            # Get annotations
-            with open(os.path.join(video_path, 'annotations.txt'), 'r') as f:
-                lines = f.readlines()
-            for l in lines:
-                # Get clip id and group label
-                clip, group_label = l.split()[0].split('.jpg')[0], l.split()[1]
-                name = str(video_id) + '-' + clip
-                group_labels.append([self.class2idx[group_label], name])
+                self.dataset_root_folder, 'pose', filename)
+            object_path = os.path.join(
+                self.dataset_root_folder, 'object', filename)
+            
+            # save group name for each video sample
+            group_label.append([self.class2idx[video_id[-5:-3]], video_id])
                 
-                # Get individual label and transpose [N, 1] -> [N]
-                individual_label = individual_label_dict[(
-                    video_id, int(clip))][int(clip)]
-                individual_label = [[int(label), name + '-' + str(i)] for i, label in enumerate(individual_label)]
-                individual_labels.extend(individual_label)
                 
-                # Get joint/+ball information
-                joint_data, object_data = self.read_pose(joint_path, ball_path, clip)
-                res_skeleton.append(joint_data)
-                res_ball.append(object_data)
+            # Get joint/+object information
+            joint_data, object_data = self.read_pose_and_object(joint_path, object_path)
+            res_skeleton.append(joint_data)
+            res_obj.append(object_data)
                 
         # Save label
         os.makedirs(self.out_folder, exist_ok=True)
         with open(os.path.join(self.out_folder, phase + '_label.pkl'), 'wb') as f:
-            pickle.dump(group_labels, f)
-        with open(os.path.join(self.out_folder, phase + '_individual_label.pkl'), 'wb') as f:
-            pickle.dump(individual_labels, f)
-
+            pickle.dump(group_label, f)
+        
         # Save pose data
         res_skeleton = np.array(res_skeleton)
         np.save(os.path.join(self.out_folder, phase + '_data.npy'), res_skeleton)
         
-        # Save ball data
-        res_ball = np.array(res_ball)
-        np.save(os.path.join(self.out_folder, phase + '_object_data.npy'), res_ball)
-
+        # Save obj data
+        with open(os.path.join(self.out_folder, phase + '_object_data.json', "w")) as f:
+            json.dump(res_obj, f)
+        
     def start(self):
         for phase in ['train', 'eval']:
             logging.info('Phase: {}'.format(phase))
