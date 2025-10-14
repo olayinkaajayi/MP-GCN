@@ -20,8 +20,8 @@ class CamD_Reader():
         self.out_folder = out_folder
 
         # Divide train and eval samples
-        pose_dir = os.path.join(dataset_root_folder,'pose')
-        smp_idx = range(len(os.listdir(pose_dir)))
+        self.pose_dir = os.path.join(dataset_root_folder,'pose')
+        smp_idx = range(len(os.listdir(self.pose_dir)))
         random.shuffle(smp_idx)
         split_idx = int(len(smp_idx) * split_ratio)
         self.training_samples = smp_idx[:split_idx]
@@ -63,7 +63,7 @@ class CamD_Reader():
         # Fill skeleton_data
         for frame_data in pose_data.get("frames", []):
             t = frame_data["frame_index"]
-########################## Might need to introduce my downsampling function here ##################################################
+########################## Might need to introduce my downsampling function for time length here ##################################################
             if t >= T:
                 continue
             for m, person in enumerate(frame_data["poses"][:M]):
@@ -85,7 +85,7 @@ class CamD_Reader():
         for frame_data in obj_data.get("frames", []):
             objects = frame_data.get("objects", [])
             if not objects:
-                obj_coords.append([np.nan, np.nan])  # no object in frame
+                obj_coords.append([np.nan, np.nan, 0.0])  # no object in frame
                 continue
             # Pick first object (or highest confidence)
             obj = max(objects, key=lambda o: o.get("confidence", 0))
@@ -105,7 +105,7 @@ class CamD_Reader():
         res_skeleton = []
         res_obj = []
         group_label = []
-        video_list = os.listdir(path) # use the directory for pose
+        video_list = os.listdir(self.pose_dir) # use the directory for pose
         videos = video_list[self.training_samples] if phase == 'train' else video_list[self.eval_samples]
         
         iterizer = tqdm(videos, dynamic_ncols=True)
