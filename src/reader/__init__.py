@@ -7,7 +7,7 @@ from .nba_reader import NBA_Reader
 from .k400_reader import K400_HRNet_Reader
 
 __generator = {
-    'CamD': CamD_Reader,
+    'camD': CamD_Reader,
     'volleyball': VolleyBall_Reader,
     'volleyball-weak': VolleyBall_Weak_Reader,
     'nba': NBA_Reader,
