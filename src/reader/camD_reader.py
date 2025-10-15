@@ -15,13 +15,15 @@ class CamD_Reader():
         self.max_frame = 100
         self.max_joint = 17
         self.max_person = 6
+        self.min_frame_id = 10 # skip first n frames
+        self.last_n_frames = 4 # skip last n frames
 
         self.dataset_root_folder = dataset_root_folder
         self.out_folder = out_folder
 
         # Divide train and eval samples
-        self.pose_dir = os.path.join(dataset_root_folder,'pose')
-        smp_idx = range(len(os.listdir(self.pose_dir)))
+        self.pose_dir = os.path.join(dataset_root_folder,'poses')
+        smp_idx = list(range(len(os.listdir(self.pose_dir))))
         random.shuffle(smp_idx)
         split_idx = int(len(smp_idx) * split_ratio)
         self.training_samples = smp_idx[:split_idx]
@@ -61,18 +63,31 @@ class CamD_Reader():
             pose_data = json.load(f)
 
         # Fill skeleton_data
-        for frame_data in pose_data.get("frames", []):
+        frame_cnt = 0 #used to populate the skeleton array (index)
+        frames_dict = pose_data.get("frames", {})
+
+        len_frames = len(frames_dict.keys()) # length of video frames
+
+        reduced_list = self.downsample_frames(len_frames)
+
+        for frame_idx in sorted(frames_dict.keys(), key=lambda x: int(x)):
+            frame_data = frames_dict[frame_idx]
+            
             t = frame_data["frame_index"]
-########################## Might need to introduce my downsampling function for time length here ##################################################
-            if t >= T:
+
+            # Reduce frame rate
+            if t not in reduced_list:
                 continue
+            
             for m, person in enumerate(frame_data["poses"][:M]):
                 kpts = np.array(person["keypoints"], dtype=np.float32)
                 conf = np.array(person["confidence"], dtype=np.float32)
                 # Shape: (V, 2) → stack with conf to get (V, 3)
                 joint = np.concatenate([kpts, conf[:, None]], axis=1)
                 v = min(V, joint.shape[0])
-                skeleton_data[t, m, :v, :] = joint[:v]
+                skeleton_data[frame_cnt, m, :v, :] = joint[:v]
+
+            frame_cnt += 1 # increase count till we get to last frame
 
         # --- Load Object JSON ---
         with open(obj_path, 'r') as f:
@@ -81,11 +96,17 @@ class CamD_Reader():
         # Assuming one object of interest per video
         obj_name = None
         obj_coords = []
-
+        
         for frame_data in obj_data.get("frames", []):
+
+            t = frame_data["frame_index"]
+            # Reduce frame rate
+            if t not in reduced_list:
+                continue
+
             objects = frame_data.get("objects", [])
             if not objects:
-                obj_coords.append([np.nan, np.nan, 0.0])  # no object in frame
+                obj_coords.append([0.0, 0.0, 0.0])  # no object in frame
                 continue
             # Pick first object (or highest confidence)
             obj = max(objects, key=lambda o: o.get("confidence", 0))
@@ -105,8 +126,8 @@ class CamD_Reader():
         res_skeleton = []
         res_obj = []
         group_label = []
-        video_list = os.listdir(self.pose_dir) # use the directory for pose
-        videos = video_list[self.training_samples] if phase == 'train' else video_list[self.eval_samples]
+        video_list = np.array(os.listdir(self.pose_dir)) # use the directory for pose
+        videos = video_list[self.training_samples].tolist() if phase == 'train' else video_list[self.eval_samples].tolist()
         
         iterizer = tqdm(videos, dynamic_ncols=True)
         for filename in iterizer:
@@ -119,9 +140,9 @@ class CamD_Reader():
 
             # path to joints and object files
             joint_path = os.path.join(
-                self.dataset_root_folder, 'pose', filename)
+                self.dataset_root_folder, 'poses', filename)
             object_path = os.path.join(
-                self.dataset_root_folder, 'object', filename)
+                self.dataset_root_folder, 'objects', f'{video_id}_left_objects.json')
             
             # save group name for each video sample
             group_label.append([self.class2idx[video_id[-5:-3]], video_id])
@@ -142,10 +163,44 @@ class CamD_Reader():
         np.save(os.path.join(self.out_folder, phase + '_data.npy'), res_skeleton)
         
         # Save obj data
-        with open(os.path.join(self.out_folder, phase + '_object_data.json', "w")) as f:
+        with open(os.path.join(self.out_folder, phase + '_object_data.json'), "w") as f:
             json.dump(res_obj, f)
         
     def start(self):
         for phase in ['train', 'eval']:
             logging.info('Phase: {}'.format(phase))
             self.gendata(phase)
+
+
+    def downsample_frames(self, len_frames, random_idx=False):
+        """
+        Downsample a list of video frames to a specified target length.
+        
+        Args:
+            len_frames (int): length of video frames.
+            target_frame_count (int): The desired number of frames after downsampling.
+            
+        Returns:
+            list: A uniformly downsampled list of frames.
+        """
+        
+        T = len_frames - self.min_frame_id - self.last_n_frames
+
+        target_frame_count = self.max_frame
+        
+        # If the video is already short enough, return as is or pad if needed
+        if target_frame_count >= T:
+            return list(range(self.min_frame_id,T))
+        
+        if not random_idx:
+        
+            # Compute indices for uniform sampling
+            indices = [self.min_frame_id + int(i * T / target_frame_count) for i in range(target_frame_count)]
+        else:
+            indices = random.sample(range(self.min_frame_id, T), self.max_frame)
+            indices.sort()
+        
+        # Ensure last index doesn't exceed bounds
+        # indices[-1] = min(indices[-1], T - 1)
+
+        return indices
