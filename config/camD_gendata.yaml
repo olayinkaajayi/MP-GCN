@@ -6,5 +6,5 @@ work_dir: ./workdir
 dataset: camD
 dataset_args:
   num_frame: 20
-  dataset_root_folder: ../
+  dataset_root_folder: ./data/camD
   out_folder: ./data/camD
