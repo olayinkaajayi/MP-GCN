@@ -52,10 +52,13 @@ def init_parser():
     # Optimizer
     parser.add_argument('--optimizer', '-o', type=str, default='', help='Initial optimizer')
     parser.add_argument('--optimizer_args', default=dict(), help='Args for optimizer')
+    parser.add_argument('--n_splits', '-ns', type=int, default=10, help='Number of splits')
 
     # LR_Scheduler
     parser.add_argument('--lr_scheduler', '-ls', type=str, default='', help='Initial learning rate scheduler')
     parser.add_argument('--scheduler_args', default=dict(), help='Args for scheduler')
+    #parser.add_argument('--label_smoothing', type=float, default=0.0, help='Label smoothing')
+    parser.add_argument('--deterministic', action='store_true', help='Use deterministic training. Fix dataset loader, and disable CUDA benchmarking')
 
     return parser
 

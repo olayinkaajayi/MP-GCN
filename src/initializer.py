@@ -40,6 +40,17 @@ class Initializer():
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.enabled = True
 
+
+        #PMB
+        if self.args.deterministic:
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
+            # Enforce reproducibility across PyTorch operations (PyTorch 1.8.0+)
+            torch.use_deterministic_algorithms(True)
+        else:
+            torch.backends.cudnn.benchmark = True
+
         self.global_step = 0
         if self.args.debug:
             self.model_name = 'debug'
@@ -76,17 +87,24 @@ class Initializer():
         dataset_name = self.args.dataset.split('-')[0]
         dataset_args = self.args.dataset_args
         dataset_args['debug'] = self.args.debug
+        if self.args.deterministic:
+            num_workers = 0
+            #todo implement worker_init_fn to fix the seed in each process instead of this crude method
+        else:
+            num_workers = 4*len(self.args.gpus)
+
+
         self.train_batch_size = dataset_args['train_batch_size']
         self.eval_batch_size = dataset_args['eval_batch_size']
         self.feeders, self.data_shape, self.num_class, self.A, self.parts = dataset.create(
             self.args.dataset, **dataset_args
         )
         self.train_loader = DataLoader(self.feeders['train'],
-            batch_size=self.train_batch_size, num_workers=4*len(self.args.gpus),
+            batch_size=self.train_batch_size, num_workers=num_workers,#4*len(self.args.gpus),    #pmb
             pin_memory=True, shuffle=True, drop_last=True
         )
         self.eval_loader = DataLoader(self.feeders['eval'],
-            batch_size=self.eval_batch_size, num_workers=4*len(self.args.gpus),
+            batch_size=self.eval_batch_size, num_workers=num_workers,#4*len(self.args.gpus),    #pmb
             pin_memory=True, shuffle=False, drop_last=False
         )
         logging.info('Dataset: {}'.format(self.args.dataset))
@@ -145,5 +163,5 @@ class Initializer():
         logging.info('LR_Scheduler: {} {}'.format(self.args.lr_scheduler, scheduler_args))
 
     def init_loss_func(self):
-        self.loss_func = torch.nn.CrossEntropyLoss().to(self.device)
+        self.loss_func = torch.nn.CrossEntropyLoss(label_smoothing=self.args.optimizer_args["label_smoothing"]).to(self.device)
         logging.info('Loss function: {}'.format(self.loss_func.__class__.__name__))
