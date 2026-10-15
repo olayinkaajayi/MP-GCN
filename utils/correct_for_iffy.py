@@ -2,7 +2,9 @@
 from pathlib import Path
 import json
 import ffmpeg
-
+"""
+Code to reproduce videos that have been marked as corrupted
+"""
 
 root_path = Path('/its/home/tafj0/mnt/16TB/IntentMAPS/real_proc2')
 output_path = Path('corrrected_videos')

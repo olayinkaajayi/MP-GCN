@@ -2,10 +2,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 # 1. Define configuration constants
-VIDEO_PATH = "/its/home/tafj0/datasets/Cambridge1/BLUEB1P1F.mp4"
-VIDEO_PATH ="/its/home/tafj0/datasets/Cambridge1/BLUEB4P6F.mp4"
 
-
+"""
+Code to detect blue circles in a video. Some videos have been corrupted by displaying pose detection points
+"""
 lower_bound = np.array([240, 0, 0])
 upper_bound = np.array([255, 10, 20])
 def detect_corrupted_circles(video_path):
