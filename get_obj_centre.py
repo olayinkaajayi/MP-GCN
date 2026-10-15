@@ -1,14 +1,15 @@
 import os
 import json
 import cv2
-from ultralytics import YOLO
+from ultralytics import YOLO, YOLOWorld
 from tqdm import tqdm
+from visualize_yolo_video import worldTrack
 
 def extract_objects_from_videos(
     video_dir,
     output_dir,
     model_path='yolov8x.pt',
-    target_classes=['backpack', 'knife', 'cell phone'],  # YOLOv8 class names
+    target_classes=['backpack', 'knife', 'cell phone', 'suitcase', 'handbag'] ,#'remote'],  # YOLOv8 class names
     conf_threshold=0.5
 ):
     """
@@ -24,7 +25,7 @@ def extract_objects_from_videos(
     """
     os.makedirs(output_dir, exist_ok=True)
     model = YOLO(model_path)
-
+    world_track = worldTrack()
     # Map target class names to class indices
     class_names = model.names  # YOLOv8 class names
     target_class_ids = [i for i, name in class_names.items() if name in target_classes]
@@ -50,7 +51,7 @@ def extract_objects_from_videos(
                 break
 
             results = model.predict(source=frame, conf=conf_threshold, verbose=False)
-
+            world_results = world_track.detect(frame, annotate_frame=False)
             frame_objects = []
             for r in results:
                 if r.boxes is not None:
@@ -68,7 +69,20 @@ def extract_objects_from_videos(
                                 "confidence": float(conf),
                                 "center": [float(cx), float(cy)]
                             })
-
+            for r in world_results:
+                if r.boxes is not None:
+                    boxes = r.boxes.xyxy.cpu().numpy()
+                    class_ids = r.boxes.cls.cpu().numpy().astype(int)
+                    confs = r.boxes.conf.cpu().numpy()
+                    for box, cls_id, conf in zip(boxes, class_ids, confs):
+                        x1, y1, x2, y2 = box
+                        cx = (x1 + x2) / 2
+                        cy = (y1 + y2) / 2
+                        frame_objects.append({
+                            "object_name": "thrown object",
+                            "confidence": float(conf),
+                            "center": [float(cx), float(cy)]
+                        })
             video_data["frames"].append({
                 "frame_index": frame_idx,
                 "objects": frame_objects
@@ -82,8 +96,8 @@ def extract_objects_from_videos(
         print(f"Saved objects to {output_path}")
 
 if __name__ == "__main__":
-    video_dir = "../data/27_03_2025-vid" # Folder containing videos
-    output_dir = "../objects"        # Folder to save JSON results
+    video_dir = "/its/home/tafj0/datasets/Cambridge1" # Folder containing videos
+    output_dir = "objects"        # Folder to save JSON results
     model_path = "yolov8x.pt"     # YOLOv8 detection model (auto-downloads if missing)
 
     extract_objects_from_videos(video_dir, output_dir, model_path)

@@ -8,12 +8,13 @@ from .utils import graph_processing, multi_input
 
 
 class camD_Feeder(Dataset):
-    def __init__(self, phase, graph, root_folder, inputs, debug, obj=False, max_frame=80, object_folder='', processing='default', person_id=[0], input_dims=2, **kwargs):
+    def __init__(self, phase, graph, root_folder, inputs, debug, fold=None, obj=False, max_frame=80, object_folder='', processing='default', person_id=[0], input_dims=2, **kwargs):
         self.phase = phase
         self.inputs = inputs
         self.processing = processing
         self.obj = obj
         self.debug = debug
+        self.fold = fold if fold is not None else kwargs.get('fold_idx', None)
         
         self.graph = graph.graph
         self.conn = graph.connect_joint
@@ -22,13 +23,25 @@ class camD_Feeder(Dataset):
         self.num_person = graph.num_person
         
         self.input_dims = input_dims # expected to be 3 (x,y,conf)
+        logging.info(f'Input dims: {self.input_dims}')
         self.max_frame = max_frame
         self.M = len(person_id)
         self.datashape = self.get_datashape()
 
+        if self.fold is not None:
+            fold_dir = f'fold_{self.fold}' if isinstance(self.fold, int) or (isinstance(self.fold, str) and not self.fold.startswith('fold_')) else str(self.fold)
+            if not os.path.basename(os.path.normpath(root_folder)).startswith('fold_'):
+                root_folder = os.path.join(root_folder, fold_dir)
+            if object_folder and not os.path.basename(os.path.normpath(object_folder)).startswith('fold_'):
+                object_folder = os.path.join(object_folder, fold_dir)
+        elif not os.path.exists(os.path.join(root_folder, phase+'_data.npy')) and os.path.exists(os.path.join(root_folder, 'fold_0', phase+'_data.npy')):
+            root_folder = os.path.join(root_folder, 'fold_0')
+            if object_folder and os.path.exists(os.path.join(object_folder, 'fold_0', phase+'_object_data.json')):
+                object_folder = os.path.join(object_folder, 'fold_0')
+
         data_path = os.path.join(root_folder, phase+'_data.npy')
         label_path = os.path.join(root_folder, phase+'_label.pkl')
-        object_json_path = os.path.join(object_folder, phase+'_object_data.json')
+        object_json_path = os.path.join(object_folder if object_folder else root_folder, phase+'_object_data.json')
 
         try:
             logging.info('Loading {} pose data from {}'.format(phase, data_path))

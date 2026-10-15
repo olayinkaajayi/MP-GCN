@@ -12,6 +12,7 @@ ACTIVITIES = ['B1', 'F1', 'B2', 'F2', 'B3',
 
 class CamD_Reader():
     def __init__(self, dataset_root_folder, out_folder, n_splits=10, seed=42, **kwargs):
+        self.pose_dir_stub = 'poses'
         self.max_channel = 3
         self.max_frame = 100
         self.max_joint = 17
@@ -24,7 +25,7 @@ class CamD_Reader():
         self.n_splits = n_splits
 
         # Pose directory & file listing
-        self.pose_dir = os.path.join(dataset_root_folder, 'poses')
+        self.pose_dir = os.path.join(dataset_root_folder, self.pose_dir_stub)
         self.video_files = np.array(os.listdir(self.pose_dir))
 
         # Setup K-Fold Cross Validation
@@ -110,7 +111,7 @@ class CamD_Reader():
             if video_id[:-5] not in ['RED', 'YELLOW', 'BLACK', 'GREEN', 'BLUE', 'WHITE']:
                 continue
 
-            joint_path = os.path.join(self.dataset_root_folder, 'poses', filename)
+            joint_path = os.path.join(self.dataset_root_folder, self.pose_dir_stub, filename)
             object_path = os.path.join(self.dataset_root_folder, 'objects', f'{video_id}_left_objects.json')
             
             group_label.append([self.class2idx[video_id[-5:-3]], video_id])

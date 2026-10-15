@@ -74,8 +74,8 @@ def extract_pose_from_videos(
 
 if __name__ == "__main__":
     # Example usage:
-    video_dir = "../data/27_03_2025-vid" # folder containing .mp4 etc.
-    output_dir = "../poses"          # folder to save results
+    video_dir = "/its/home/tafj0/datasets/Cambridge1" # folder containing .mp4 etc.
+    output_dir = "../poses_new"          # folder to save results
     model_path = "yolov8x-pose.pt"  # pre-trained model (auto-downloads if missing)
 
     extract_pose_from_videos(video_dir, output_dir, model_path)

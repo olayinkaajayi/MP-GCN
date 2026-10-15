@@ -23,6 +23,7 @@ dataset_args:
   person_id: [0,1,2,3,4,5]
   root_folder: ./data/camD
   object_folder: ./data/camD
+  n_splits: 10
 
 # Model
 model_type: MPGCN
