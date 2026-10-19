@@ -8,10 +8,11 @@ def extract_pose_from_videos(
     video_dir,
     output_dir,
     model_path='yolov8x-pose.pt',
-    conf_threshold=0.5
+    conf_threshold=0.5,
+    tracker='bytetrack.yaml'
 ):
     """
-    Extracts human poses from each frame of videos in video_dir using YOLOv8x-pose,
+    Extracts human poses and tracks each person across frames of videos in video_dir using YOLOv8x-pose,
     and saves results to JSON files (one per video).
 
     Args:
@@ -19,6 +20,7 @@ def extract_pose_from_videos(
         output_dir (str): Folder to save extracted pose files.
         model_path (str): Path or name of YOLOv8 pose model.
         conf_threshold (float): Detection confidence threshold.
+        tracker (str): Tracker configuration file (e.g. 'bytetrack.yaml' or 'botsort.yaml').
     """
     os.makedirs(output_dir, exist_ok=True)
     model = YOLO(model_path)
@@ -29,6 +31,12 @@ def extract_pose_from_videos(
         return
 
     for video_file in video_files:
+        # Reset tracker state between videos
+        if hasattr(model, 'predictor') and model.predictor is not None:
+            if hasattr(model.predictor, 'trackers'):
+                #model.predictor.trackers = None
+                model.predictor.trackers[0].reset()
+
         video_path = os.path.join(video_dir, video_file)
         output_path = os.path.join(output_dir, os.path.splitext(video_file)[0] + '_poses.json')
 
@@ -43,7 +51,7 @@ def extract_pose_from_videos(
             if not ret:
                 break
 
-            results = model.predict(source=frame, conf=conf_threshold, verbose=False)
+            results = model.track(source=frame, persist=True, tracker=tracker, conf=conf_threshold, verbose=False)
 
             # Collect poses for all detected persons
             frame_poses = []
@@ -51,10 +59,16 @@ def extract_pose_from_videos(
                 if hasattr(r, "keypoints") and r.keypoints is not None:
                     kpts = r.keypoints.xy.cpu().numpy()  # shape: (num_persons, num_keypoints, 2)
                     conf = r.keypoints.conf.cpu().numpy() if r.keypoints.conf is not None else None
+                    track_ids = (
+                        r.boxes.id.int().cpu().tolist()
+                        if (hasattr(r, "boxes") and r.boxes is not None and r.boxes.id is not None)
+                        else None
+                    )
 
                     for pid, person_kpts in enumerate(kpts):
+                        person_id = int(track_ids[pid]) if (track_ids is not None and pid < len(track_ids)) else pid
                         frame_poses.append({
-                            "person_id": pid,
+                            "person_id": person_id,
                             "keypoints": person_kpts.tolist(),
                             "confidence": conf[pid].tolist() if conf is not None else None
                         })
@@ -74,11 +88,11 @@ def extract_pose_from_videos(
 
 if __name__ == "__main__":
     # Example usage:
-    video_dir = "/its/home/tafj0/datasets/Cambridge1" # folder containing .mp4 etc.
-    output_dir = "../poses_new"          # folder to save results
+    video_dir = "/its/home/tafj0/datasets/Cambridge1/corrected" # folder containing .mp4 etc.
+    output_dir = "poses_tracked_C"          # folder to save results
     model_path = "yolov8x-pose.pt"  # pre-trained model (auto-downloads if missing)
 
-    extract_pose_from_videos(video_dir, output_dir, model_path)
+    extract_pose_from_videos(video_dir, output_dir, model_path, tracker="tracktrack.yaml")
 
 
 # COCO 17-keypoint skeleton (edges between keypoints)
