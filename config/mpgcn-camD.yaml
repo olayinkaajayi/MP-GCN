@@ -32,6 +32,9 @@ model_args:
   kernel_size: [3,2]
   dilation: [2,3]
   reduct_ratio: 2
+  basic_block_channel1: 16 #128
+  basic_block_channel2: 32 #256
+  first_block_input_factor: 32
 
 # Optimizer
 # SGD, Adam
