@@ -88,11 +88,11 @@ def extract_pose_from_videos(
 
 if __name__ == "__main__":
     # Example usage:
-    video_dir = "/its/home/tafj0/datasets/Cambridge1/corrected" # folder containing .mp4 etc.
-    output_dir = "poses_tracked_C"          # folder to save results
-    model_path = "yolov8x-pose.pt"  # pre-trained model (auto-downloads if missing)
+    video_dir = "/its/home/tafj0/datasets/Cambridge1/" # folder containing .mp4 etc.
+    output_dir = "data/camD/poses_tracked_OC"          # folder to save results
+    model_path = "yolo26x-pose.pt"  # pre-trained model (auto-downloads if missing)
 
-    extract_pose_from_videos(video_dir, output_dir, model_path, tracker="tracktrack.yaml")
+    extract_pose_from_videos(video_dir, output_dir, model_path, tracker="config/tracker/deepocsort.yaml")
 
 
 # COCO 17-keypoint skeleton (edges between keypoints)
