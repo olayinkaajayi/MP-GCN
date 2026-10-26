@@ -1,10 +1,10 @@
 #! /bin/fish
-
+# make the videos of the activities with pose and objects overlaid
 set dataset_dir ~/datasets/Cambridge1
 set pose_dir data/camD/poses_tracked_OC
 set output_dir skel_vids_OC
-set action_list "B1" "B2"
-#set action_list "B2" "B4" "F1" "F2" "F3" "F4"
+#set action_list "B1" "B2"
+set action_list "B3" "B4" "F1" "F2" "F3" "F4"
 for action in $action_list
     echo "Action "$action
     for p in $dataset_dir/*$action*F.mp4

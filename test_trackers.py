@@ -1,6 +1,10 @@
 import cv2
 import numpy as np
 from ultralytics import YOLO
+"""
+Sample code for viewing how well ultralytics trackers perform on a video.
+
+"""
 
 model = YOLO("yolo11x-seg.pt")  # Or yolo11x-pose.pt / yolo11x-seg.pt for higher accuracy
 cap = cv2.VideoCapture("/its/home/tafj0/datasets/Cambridge1/BLUEB4P5F.mp4")
