@@ -1,6 +1,6 @@
 # Setting
 gpus: [0]
-seed: 1
+seed: 2  #1
 debug: False
 pretrained_path:
 work_dir: ./workdir
@@ -23,6 +23,7 @@ dataset_args:
   person_id: [0,1,2,3,4,5]
   root_folder: ./data/camD
   object_folder: ./data/camD
+  n_splits: 10
 
 # Model
 model_type: MPGCN
@@ -31,6 +32,9 @@ model_args:
   kernel_size: [3,2]
   dilation: [2,3]
   reduct_ratio: 2
+  basic_block_channel1: 64 #128
+  basic_block_channel2: 128 #256
+  first_block_input_factor: 32
 
 # Optimizer
 # SGD, Adam

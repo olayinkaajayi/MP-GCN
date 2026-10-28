@@ -6,12 +6,16 @@ import logging
 import numpy as np
 from tqdm import tqdm
 from sklearn.model_selection import KFold  # Added KFold import
-
+import re
 ACTIVITIES = ['B1', 'F1', 'B2', 'F2', 'B3',
               'F3', 'B4', 'F4', 'B5', 'F5']
 
 class CamD_Reader():
     def __init__(self, dataset_root_folder, out_folder, n_splits=10, seed=42, **kwargs):
+        self.pose_dir_stub =kwargs.get('pose_folder', 'poses')
+        logging.info(f"Pose directory stub: {self.pose_dir_stub}")
+        self.skip_files = kwargs.get('skip_files', [])
+        self.camera_view = kwargs.get('camera_view', None)
         self.max_channel = 3
         self.max_frame = 100
         self.max_joint = 17
@@ -24,8 +28,14 @@ class CamD_Reader():
         self.n_splits = n_splits
 
         # Pose directory & file listing
-        self.pose_dir = os.path.join(dataset_root_folder, 'poses')
-        self.video_files = np.array(os.listdir(self.pose_dir))
+        self.pose_dir = os.path.join(dataset_root_folder, self.pose_dir_stub)
+        vid_files = os.listdir(self.pose_dir)
+        if self.camera_view is not None:
+            self.video_files = np.array([f for f in vid_files if f not in self.skip_files and
+                                         re.search(r'([FS])_poses\.json$', f).group(1) == self.camera_view])
+        else:
+            self.video_files = np.array([f for f in vid_files if f not in self.skip_files])
+        #self.video_files = np.array(os.listdir(self.pose_dir))
 
         # Setup K-Fold Cross Validation
         kf = KFold(n_splits=self.n_splits, shuffle=True, random_state=seed)
@@ -110,9 +120,12 @@ class CamD_Reader():
             if video_id[:-5] not in ['RED', 'YELLOW', 'BLACK', 'GREEN', 'BLUE', 'WHITE']:
                 continue
 
-            joint_path = os.path.join(self.dataset_root_folder, 'poses', filename)
-            object_path = os.path.join(self.dataset_root_folder, 'objects', f'{video_id}_left_objects.json')
-            
+            joint_path = os.path.join(self.dataset_root_folder, self.pose_dir_stub, filename)
+            object_path = os.path.join(self.dataset_root_folder, 'objects', f'{video_id}_objects.json')
+            # some objects are missing
+            if not os.path.exists(object_path):
+                logging.warn(f"Missing object file: {object_path}")
+                continue
             group_label.append([self.class2idx[video_id[-5:-3]], video_id])
                 
             joint_data, object_data = self.read_pose_and_object(joint_path, object_path)

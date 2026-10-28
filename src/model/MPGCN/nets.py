@@ -1,5 +1,7 @@
 import torch
 import logging
+
+
 from torch import nn
 from .blocks import Spatial_Basic_Block, Temporal_MultiScale_Block, ST_Person_Attention
 
@@ -29,6 +31,10 @@ class MPGCN(nn.Module):
     def __init__(self, data_shape, num_class, A, **kwargs):
         super(MPGCN, self).__init__()
 
+        basic_block_channel1 = kwargs.get('basic_block_channel1', 128)
+        basic_block_channel2 = kwargs.get('basic_block_channel2', 256)
+        first_block_input_factor = kwargs.get('first_block_input_factor',32)
+
         num_input, num_channel, _, _, _ = data_shape
 
         # input branches
@@ -39,18 +45,18 @@ class MPGCN(nn.Module):
 
         # main stream
         module_list = [
-            Basic_Block(32*num_input, 128, A, stride=2, **kwargs),
-            Basic_Block(128, 128, A, **kwargs),
-            Basic_Block(128, 128, A, **kwargs),
-            Basic_Block(128, 256, A, stride=2, **kwargs),
-            Basic_Block(256, 256, A, **kwargs),
-            Basic_Block(256, 256, A, **kwargs)
+            Basic_Block(first_block_input_factor*num_input, basic_block_channel1, A, stride=2, **kwargs),
+            Basic_Block(basic_block_channel1, basic_block_channel1, A, **kwargs),
+            Basic_Block(basic_block_channel1, basic_block_channel1, A, **kwargs),
+            Basic_Block(basic_block_channel1, basic_block_channel2, A, stride=2, **kwargs),
+            Basic_Block(basic_block_channel2, basic_block_channel2, A, **kwargs),
+            Basic_Block(basic_block_channel2, basic_block_channel2, A, **kwargs)
         ]
         self.main_stream = nn.ModuleList(module_list)
 
         # output
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.fcn = nn.Linear(256, num_class)
+        self.fcn = nn.Linear(basic_block_channel2, num_class)
 
         # init parameters
         init_param(self.modules())

@@ -8,3 +8,11 @@ dataset_args:
   num_frame: 20
   dataset_root_folder: ./data/camD
   out_folder: ./data/camD
+  n_splits: 10
+  pose_folder: poses_tracked_OC
+  camera_view: F           #or S or None for both
+  skip_files:
+    - WHITEF2P4S_poses.json
+    - WHITEF5P3S_poses.json
+    - BLUEF1P3S_poses.json
+    - WHITEB5P3F_poses.json

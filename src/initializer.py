@@ -9,7 +9,7 @@ from . import utils
 from . import dataset
 from . import model
 from . import scheduler
-
+import sys
 
 class Initializer():
     def __init__(self, args):
@@ -134,12 +134,27 @@ class Initializer():
         )
         pretrained_model = '{}/{}.pth.tar'.format(self.args.pretrained_path, self.model_name)
         if os.path.exists(pretrained_model):
-            checkpoint = torch.load(pretrained_model, map_location=torch.device('cpu'))
-            self.model.module.load_state_dict(checkpoint['model'])
-            self.cm = checkpoint['best_state']['cm']
-            logging.info('Pretrained model: {}'.format(pretrained_model))
+            if self.args.transfer:
+                t_pretrained_model = '{}/{}_weights.pth.tar'.format(self.args.pretrained_path, self.model_name)
+                logging.info('Pretrained model: {}'.format(t_pretrained_model))
+                checkpoint = torch.load(t_pretrained_model)
+                pretrained_dict = checkpoint if isinstance(checkpoint,
+                                                           dict) and 'fc.weight' in checkpoint else checkpoint
+                # 4. Filter out the last layer's weights (e.g., 'fc.weight' and 'fc.bias')
+                # Change 'fc' to match your model's classification layer name (e.g., 'classifier' for VGG/AlexNet)
+                filtered_dict = {k: v for k, v in pretrained_dict.items() if not k.startswith('fcn.')}
+
+
+                self.model.module.load_state_dict(filtered_dict, strict=False)
+                #logging.info('Pretrained model: {}'.format(t_pretrained_model))
+            else:
+                checkpoint = torch.load(pretrained_model, map_location=torch.device('cpu'),weights_only=False)
+                self.model.module.load_state_dict(checkpoint['model'])
+                self.cm = checkpoint['best_state']['cm']
+                logging.info('Pretrained model: {}'.format(pretrained_model))
         elif self.args.pretrained_path:
-            logging.warning('Warning: Do NOT exist this pretrained model: {}!'.format(pretrained_model))
+            logging.error('Error: Do NOT exist this pretrained model: {}!'.format(pretrained_model))
+            sys.exit(-1)
             logging.info('Create model randomly.')
 
     def init_optimizer(self):

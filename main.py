@@ -33,7 +33,7 @@ def init_parser():
     parser.add_argument('--seed', '-s', type=int, default=1, help='Random seed')
     parser.add_argument('--pretrained_path', '-pp', type=str, default='', help='Path to pretrained models')
     parser.add_argument('--work_dir', '-w', type=str, default='', help='Work dir')
-
+    parser.add_argument('--transfer','-t',default=False, action='store_true', help='Transfer Learning . Use with pretrained_path')
     # Processing
     parser.add_argument('--debug', '-db', default=False, action='store_true', help='Debug')
     parser.add_argument('--resume', '-r', default=False, action='store_true', help='Resume from checkpoint')
@@ -52,7 +52,7 @@ def init_parser():
     # Optimizer
     parser.add_argument('--optimizer', '-o', type=str, default='', help='Initial optimizer')
     parser.add_argument('--optimizer_args', default=dict(), help='Args for optimizer')
-    parser.add_argument('--n_splits', '-ns', type=int, default=10, help='Number of splits')
+    #parser.add_argument('--n_splits', '-ns', type=int, default=10, help='Number of splits')
 
     # LR_Scheduler
     parser.add_argument('--lr_scheduler', '-ls', type=str, default='', help='Initial learning rate scheduler')

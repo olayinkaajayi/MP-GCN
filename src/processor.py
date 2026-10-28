@@ -22,7 +22,8 @@ class Processor(Initializer):
             # Using GPU
             x = x.float().to(self.device)
             y = y.long().to(self.device)
-
+            if num==0:
+                self.scalar_writer.add_graph(self.model, x)
             # Calculating Output
             out, _ = self.model(x)
 
@@ -202,16 +203,55 @@ class Processor(Initializer):
 
         return best_state['acc_top1'], best_state['acc_top5']
 
-    def start(self):
-        n_folds = getattr(self.args, 'n_splits', 10)
+    def init_model(self):
+        """Initialize the model."""
+        super().init_model()
 
+        if self.args.transfer:  # freeze layers
+            print("Named Layers:")
+            for name, module in self.model.named_modules():
+
+                if name.startswith(('module.fcn')) or isinstance(module,torch.nn.modules.batchnorm.BatchNorm2d) or "tcn" in name:#,'module.main_stream.5')):
+                    print(f"Gradients for Module Name: {name} of type {type(module)}")
+                    #for param in module.parameters():
+                    #    param.requires_grad = True
+                    #    print(f"^^^Don't Freeze ^^^ {type(param)} {param.size()}")
+                else:
+                    module.requires_grad = False
+                    print(f'Do not require gradients for {name} of type {type(module)}')
+
+                    #for name, layer in module.named_children():
+
+                    #for param in module.parameters():
+                    #    param.requires_grad = False
+                    #    #print(f'Freeze Layer')
+
+    def init_optimizer(self):
+        """Initialize the optimizer."""
+        super().init_optimizer()
+
+    def init_lr_scheduler(self):
+        """Initialize the learning rate scheduler."""
+        super().init_lr_scheduler()
+
+    def init_fold_environment(self, fold_idx):
+        """Re-initializes dataloaders for the specified fold."""
+        self.args.dataset_args['fold'] = fold_idx
+        self.init_dataloader()
+
+    def start(self):
+        #n_folds = getattr(self.args, 'n_splits', 10)
+
+
+
+
+        n_folds = self.args.dataset_args["n_splits"]
         if self.args.evaluate:
             logging.info('Starting evaluation across folds ...')
             fold_accs = []
             for fold_idx in range(n_folds):
                 self.save_dir = os.path.join(self.args.work_dir, f'fold_{fold_idx}')
-                if hasattr(self, 'init_fold_environment'):
-                    self.init_fold_environment(fold_idx)
+                self.init_fold_environment(fold_idx)
                 
                 checkpoint = utils.load_checkpoint(self.save_dir, self.model_name)
                 if checkpoint:
@@ -226,6 +266,8 @@ class Processor(Initializer):
             fold_top5_accs = []
 
             for fold_idx in range(n_folds):
+                self.init_fold_environment(fold_idx)
+
                 # 1. Re-initialize model weights and move to device
                 self.init_model()
 
